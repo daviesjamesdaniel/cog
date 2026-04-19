@@ -2020,25 +2020,26 @@ static const struct wpe_video_plane_display_dmabuf_receiver video_plane_display_
 };
 #endif
 
-static gboolean
-init_wayland (GError **error)
-{
-    g_debug ("Initializing Wayland...");
+/* Saved by check_supported(), consumed once by init_wayland(). */
+static struct wl_display *checked_wl_display = NULL;
 
-    if (!(wl_data.display = wl_display_connect (NULL))) {
-        g_set_error (error,
-                     G_FILE_ERROR,
-                     g_file_error_from_errno (errno),
-                     "Could not open Wayland display");
-        return FALSE;
+static gboolean
+init_wayland(GError **error)
+{
+    g_debug("Initializing Wayland...");
+
+    wl_data.display = g_steal_pointer(&checked_wl_display);
+    if (!wl_data.display) {
+        if (!(wl_data.display = wl_display_connect(NULL))) {
+            g_set_error(error, G_FILE_ERROR, g_file_error_from_errno(errno), "Could not open Wayland display");
+            return FALSE;
+        }
     }
 
-    wl_data.registry = wl_display_get_registry (wl_data.display);
-    g_assert (wl_data.registry);
-    wl_registry_add_listener (wl_data.registry,
-                              &registry_listener,
-                              NULL);
-    wl_display_roundtrip (wl_data.display);
+    wl_data.registry = wl_display_get_registry(wl_data.display);
+    g_assert(wl_data.registry);
+    wl_registry_add_listener(wl_data.registry, &registry_listener, NULL);
+    wl_display_roundtrip(wl_data.display);
 
 #if COG_USE_WAYLAND_CURSOR
     if (wl_data.shm) {
@@ -2156,7 +2157,13 @@ check_supported(void *data G_GNUC_UNUSED)
 #undef CHECK_SHELL_PROTOCOL
 
         wl_registry_destroy(registry);
-        wl_display_disconnect(display);
+
+        /* Keep the connection open for init_wayland() to reuse, required when WAYLAND_SOCKET is set. */
+        if (ok)
+            checked_wl_display = display;
+        else
+            wl_display_disconnect(display);
+
         return GINT_TO_POINTER(ok);
     } else {
         return GINT_TO_POINTER(FALSE);
