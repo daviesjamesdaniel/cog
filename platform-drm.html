@@ -127,6 +127,16 @@ SPDX-License-Identifier: Apache-2.0 OR GPL-3.0-or-later
 <td align="left">string</td>
 <td align="left"><code>"modeset"</code></td>
 </tr>
+<tr>
+<td align="left"><code>cursor</code></td>
+<td align="left">boolean</td>
+<td align="left"><code>false</code></td>
+</tr>
+<tr>
+<td align="left"><code>pointer</code></td>
+<td align="left">boolean</td>
+<td align="left"><code>false</code></td>
+</tr>
 </tbody>
 </table>
 <p>The <code>device-scale-factor</code> option indicates a scaling factor to be applied to
@@ -145,6 +155,9 @@ default value is <code>"modeset"</code>, which attaches rendered frames directly
 the output. Using the value <code>"gles"</code> will “paint” frames onto a quad using
 OpenGL <span class="caps">ES</span>. The main reason to use the latter is that it supports <a href="#output-rotation">output
 rotation</a>.</p>
+<p>The <code>cursor</code> and <code>pointer</code> options control whether the hardware cursor
+sprite is drawn and whether <code>libinput</code> pointer events are forwarded to
+the page, respectively. See <a href="#pointer-input">Pointer Input</a> for&nbsp;details.</p>
 <h2 id="parameters">Parameters<a class="md-anchor" href="#parameters" title="Permanent link"></a></h2>
 <p>The following parameters can be passed to the platform plug-in during
 initialization (e.g. using <code>cog --platform-params=…</code>):</p>
@@ -167,12 +180,26 @@ initialization (e.g. using <code>cog --platform-params=…</code>):</p>
 <td align="left">number</td>
 <td align="left"><code>0</code></td>
 </tr>
+<tr>
+<td align="left"><code>cursor</code></td>
+<td align="left">boolean</td>
+<td align="left"><code>false</code></td>
+</tr>
+<tr>
+<td align="left"><code>pointer</code></td>
+<td align="left">boolean</td>
+<td align="left"><code>false</code></td>
+</tr>
 </tbody>
 </table>
 <p>The <code>renderer</code> parameter is the same as the <a href="#configuration-file-options">configuration file
 option</a> of the same&nbsp;name.</p>
 <p>The <code>rotation</code> parameter indicates the initial <a href="#output-rotation">output
 rotation</a>&nbsp;applied.</p>
+<p>The <code>cursor</code> and <code>pointer</code> parameters are the same as the
+<a href="#configuration-file-options">configuration file options</a> of the same
+name. See <a href="#pointer-input">Pointer Input</a> for details. Boolean values
+accept <code>true</code>, <code>on</code>, <code>1</code>, <code>false</code>, <code>off</code>, or <code>0</code>.</p>
 <h2 id="environment-variables">Environment Variables<a class="md-anchor" href="#environment-variables" title="Permanent link"></a></h2>
 <p>The following environment variables can be set to further tweak how the
 <span class="caps">DRM</span> plug-in&nbsp;operates:</p>
@@ -200,6 +227,11 @@ rotation</a>&nbsp;applied.</p>
 <td align="left">string</td>
 <td align="right"><em>(unset)</em></td>
 </tr>
+<tr>
+<td align="left"><code>COG_PLATFORM_DRM_POINTER</code></td>
+<td align="left">string</td>
+<td align="right"><em>(unset)</em></td>
+</tr>
 </tbody>
 </table>
 <p>By default the preferred mode for the first found connected output is used
@@ -211,8 +243,67 @@ mode strings in the format <code>WxR</code> (<code>W</code>idth and <code>H</cod
 <code>COG_PLATFORM_DRM_MODE_MAX</code> additionally accepts mode strings with
 a refresh rate in the format <code>WxH@R</code>.
 for example <code>1920x1080@60</code> for a typical Full-<span class="caps">HD</span>&nbsp;mode.</p>
-<p>Setting <code>COG_PLATFORM_DRM_CURSOR</code> to a non-empty string enables showing
-the mouse cursor&nbsp;pointer.</p>
+<p>Setting <code>COG_PLATFORM_DRM_CURSOR</code> or <code>COG_PLATFORM_DRM_POINTER</code> to any
+non-empty value enables the corresponding option from
+<a href="#pointer-input">Pointer Input</a>.</p>
+<h2 id="pointer-input">Pointer Input<a class="md-anchor" href="#pointer-input" title="Permanent link"></a></h2>
+<p>Two independent options control how the <span class="caps">DRM</span> platform handles
+mouse / touchpad input. Both default to off, in which case the plug-in
+still delivers keyboard and touchscreen events to the loaded page but
+ignores pointer-class devices&nbsp;entirely.</p>
+<p>The <code>pointer</code> option forwards <code>libinput</code> pointer motion, button, and
+scroll events to <span class="caps">WPE</span>. The page then sees them as <span class="caps">DOM</span> <code>pointermove</code>,
+<code>pointerdown</code>, <code>pointerup</code>, and <code>wheel</code> events. This is independent of
+whether anything is drawn on screen; the page is responsible for any
+visual cursor (e.g. one drawn on a <code>&lt;canvas&gt;</code>).</p>
+<p>The <code>cursor</code> option allocates a hardware cursor plane and draws a
+16×16 sprite on top of the rendered output, moved on every pointer-motion
+event. This requires the underlying <span class="caps">DRM</span> driver to expose a
+<code>DRM_PLANE_TYPE_CURSOR</code> plane; many minimal drivers (e.g. <span class="caps">SPI</span>/<span class="caps">MIPI</span> panels
+using <code>drm_simple_kms_helper</code>) do not, in which case this option has no
+visible effect even when&nbsp;enabled.</p>
+<p>For backwards compatibility, enabling <code>cursor</code> implies <code>pointer</code>. The
+four&nbsp;combinations:</p>
+<table>
+<thead>
+<tr>
+<th align="center"><code>cursor</code></th>
+<th align="center"><code>pointer</code></th>
+<th align="center">Pointer events to <span class="caps">WPE</span></th>
+<th align="center">Hardware cursor sprite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">off</td>
+<td align="center">off</td>
+<td align="center">no</td>
+<td align="center">no</td>
+</tr>
+<tr>
+<td align="center">off</td>
+<td align="center">on</td>
+<td align="center">yes</td>
+<td align="center">no</td>
+</tr>
+<tr>
+<td align="center">on</td>
+<td align="center">off</td>
+<td align="center">yes (implied)</td>
+<td align="center">yes (if plane exists)</td>
+</tr>
+<tr>
+<td align="center">on</td>
+<td align="center">on</td>
+<td align="center">yes</td>
+<td align="center">yes (if plane exists)</td>
+</tr>
+</tbody>
+</table>
+<p>Configuration precedence is: command-line parameter overrides
+configuration file, which overrides environment variable. The legacy
+behaviour of <code>COG_PLATFORM_DRM_CURSOR=1</code> (enabling both pointer dispatch
+and the sprite) is preserved by the <code>cursor</code> ⇒ <code>pointer</code> implication.</p>
 <h2 id="output-rotation">Output Rotation<a class="md-anchor" href="#output-rotation" title="Permanent link"></a></h2>
 <p>When using the OpenGL <span class="caps">ES</span> renderer using <code>gles</code> as value for the <code>renderer</code>
 parameter, it is possible to rotate the output by multiples of 90 degrees.
@@ -258,6 +349,8 @@ amount 90 degree counter-clockwise turns to apply. For example a value of
         <li class="toc-list-item"><a href="#parameters"><span class="link-text">Parameters</span></a></li>
         
         <li class="toc-list-item"><a href="#environment-variables"><span class="link-text">Environment Variables</span></a></li>
+        
+        <li class="toc-list-item"><a href="#pointer-input"><span class="link-text">Pointer Input</span></a></li>
         
         <li class="toc-list-item"><a href="#output-rotation"><span class="link-text">Output Rotation</span></a></li>
         
