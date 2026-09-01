@@ -527,15 +527,20 @@ keyboard_on_keymap(void *data, struct wl_keyboard *wl_keyboard, uint32_t format,
         return;
     }
 
-    seat->xkb.keymap = xkb_keymap_new_from_string(seat->xkb.context,
-                                                  (char *) mapping,
-                                                  XKB_KEYMAP_FORMAT_TEXT_V1,
-                                                  XKB_KEYMAP_COMPILE_NO_FLAGS);
+    struct xkb_keymap *new_keymap = xkb_keymap_new_from_string(seat->xkb.context,
+                                                               (char *) mapping,
+                                                               XKB_KEYMAP_FORMAT_TEXT_V1,
+                                                               XKB_KEYMAP_COMPILE_NO_FLAGS);
     munmap(mapping, size);
     close(fd);
 
-    if (seat->xkb.keymap == NULL)
+    if (new_keymap == NULL)
         return;
+
+    g_clear_pointer(&seat->xkb.state, xkb_state_unref);
+    g_clear_pointer(&seat->xkb.keymap, xkb_keymap_unref);
+
+    seat->xkb.keymap = new_keymap;
 
     seat->xkb.state = xkb_state_new(seat->xkb.keymap);
     if (seat->xkb.state == NULL)
